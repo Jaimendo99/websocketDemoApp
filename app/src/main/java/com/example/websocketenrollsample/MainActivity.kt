@@ -14,6 +14,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +43,8 @@ class MainActivity : ComponentActivity() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(innerPadding)
                     ) {
-                        WebSocketConnection(client)
+                        WebSocketConnection(client, Modifier.padding(innerPadding))
                     }
                 }
             }
@@ -53,14 +53,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun WebSocketConnection(client: WebSocketClient) {
+fun WebSocketConnection(client: WebSocketClient, modifier: Modifier = Modifier) {
     var code by remember { mutableStateOf("") }
-    var messages: List<String> by remember { mutableStateOf(emptyList()) }
+    val messages by client.messages.collectAsState()
+    var isProcessing by remember { mutableStateOf(false) }
 
     Column(
-        Modifier.fillMaxSize(),
+        modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+//        verticalArrangement = Arrangement.Center
     ) {
         messages.forEach { message ->
             Text(message)
@@ -68,42 +69,75 @@ fun WebSocketConnection(client: WebSocketClient) {
         OutlinedTextField(
             value = code,
             onValueChange = { code = it },
-            label = { Text("Enter code") }
+            label = { Text("Enter code") },
+            enabled = !isProcessing
         )
-        Button(onClick = {
-            CoroutineScope(Dispatchers.IO).launch {
-                client.sendSuccessMessage(code, "installation_complete").onSuccess {
-                    messages = messages + "connected"
-                }.onFailure { e ->
-                    messages = messages + "Error during installation_complete: ${e.message}"
+        Button(
+            onClick = {
+                CoroutineScope(Dispatchers.Main).launch {
+                    isProcessing = true
+                    processEvents(client, code)
+                    isProcessing = false
                 }
-
-                client.sendSuccessMessage(code, "enrollment_start").onSuccess {
-                    messages = messages + "enrollment_start"
-                }.onFailure { e ->
-                    messages = messages + "Error during enrollment_start: ${e.message}"
-                }
-
-                client.sendSuccessMessage(code, "enrollment_complete").onSuccess {
-                    messages = messages + "enrollment_complete"
-                }.onFailure { e ->
-                    messages = messages + "Error during enrollment_complete: ${e.message}"
-                }
-
-                client.sendSuccessMessage(code, "policy_review").onSuccess {
-                    messages = messages + "policy_review"
-                }.onFailure { e ->
-                    messages = messages + "Error during policy_review: ${e.message}"
-                }
-
-                client.sendSuccessMessage(code, "ready").onSuccess {
-                    messages = messages + "ready"
-                }.onFailure { e ->
-                    messages = messages + "Error during ready: ${e.message}"
-                }
-            }
-        }) {
-            Text("Enter")
+            },
+            enabled = !isProcessing
+        ) {
+            Text(if (isProcessing) "Processing..." else "Enter")
         }
+    }
+}
+
+suspend fun processEvents(client: WebSocketClient, code: String) {
+    val events = listOf(
+        "installation_complete",
+        "enrollment_start",
+        "enrollment_complete",
+        "policy_review",
+        "ready"
+    )
+
+    for (event in events) {
+        when (event) {
+            "installation_complete" -> handleInstallationComplete(client, code)
+            "enrollment_start" -> handleEnrollmentStart(client, code)
+            "enrollment_complete" -> handleEnrollmentComplete(client, code)
+            "policy_review" -> handlePolicyReview(client, code)
+            "ready" -> handleReady(client, code)
+        }
+    }
+}
+
+suspend fun handleInstallationComplete(client: WebSocketClient, code: String) {
+    // Add any specific logic for installation complete here
+    client.sendSuccessMessage(code, "installation_complete").onFailure { e ->
+        client.addMessage("Error during installation_complete: ${e.message}")
+    }
+}
+
+suspend fun handleEnrollmentStart(client: WebSocketClient, code: String) {
+    // Add any specific logic for enrollment start here
+    client.sendSuccessMessage(code, "enrollment_start").onFailure { e ->
+        client.addMessage("Error during enrollment_start: ${e.message}")
+    }
+}
+
+suspend fun handleEnrollmentComplete(client: WebSocketClient, code: String) {
+    // Add any specific logic for enrollment complete here
+    client.sendSuccessMessage(code, "enrollment_complete").onFailure { e ->
+        client.addMessage("Error during enrollment_complete: ${e.message}")
+    }
+}
+
+suspend fun handlePolicyReview(client: WebSocketClient, code: String) {
+    // Add any specific logic for policy review here
+    client.sendSuccessMessage(code, "policy_review").onFailure { e ->
+        client.addMessage("Error during policy_review: ${e.message}")
+    }
+}
+
+suspend fun handleReady(client: WebSocketClient, code: String) {
+    // Add any specific logic for ready state here
+    client.sendSuccessMessage(code, "ready").onFailure { e ->
+        client.addMessage("Error during ready: ${e.message}")
     }
 }
