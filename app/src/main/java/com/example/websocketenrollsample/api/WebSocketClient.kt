@@ -1,6 +1,7 @@
 package com.example.websocketenrollsample.api
 
 import android.util.Log
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.sendSerialized
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,10 +33,11 @@ class WebSocketClient {
         }
     }
 
-    suspend fun sendSuccessMessage(destUid: String, event: String): Result<Unit> {
+    suspend fun sendSuccessMessage(destUid: String, event: String, block:(DefaultClientWebSocketSession)->Unit={}): Result<Unit> {
         return webSocketManager.connectAndSend(url, path, wsId) { session ->
             try {
                 session.sendSerialized(WsMessage(destUid, event, WsData("Success", true)))
+                block(session)
                 Log.d(TAG, "Sent message: $destUid, $event")
             } catch (e: Exception) {
                 Log.e(TAG, "Error: ${e.message}")
@@ -55,6 +57,7 @@ class WebSocketClient {
             }
         }
     }
+
     fun addMessage(message: String) {
         _messages.update { it + message }
     }
@@ -72,6 +75,20 @@ data class WsMessage(
 data class WsData(
     val message: String,
     val status: Boolean
+)
+
+@Serializable
+data class WsMessageIn(
+    val dest_uid: String,
+    val event: String,
+    val data: WsDataIn
+)
+
+@Serializable
+data class WsDataIn(
+    val message: String,
+    val status: Boolean,
+    val token : String?
 )
 
 fun randomWsId(digits: Int): String {

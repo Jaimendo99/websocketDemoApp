@@ -45,15 +45,11 @@ class WebSocketManager {
             ) {
                 Log.d(TAG, "Connected")
 
-                // Launch a coroutine to handle incoming messages
-                val receiveJob = launch { receiverListener() }
-
                 if (body != null) {
                     try {
                         sendSerialized(body)
                     } catch (e: Exception) {
                         Log.e(TAG, "Error: ${e.message}")
-                        receiveJob.cancel()
                         return@webSocket
                     }
                     Log.d(TAG, "Sent: $body")
@@ -63,7 +59,6 @@ class WebSocketManager {
                 block(this)
 
                 // Cancel the receive job when we're done
-                receiveJob.cancel()
                 Log.d(TAG, "Connection closed")
             }
             Result.success(Unit)
